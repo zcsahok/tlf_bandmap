@@ -1,5 +1,7 @@
 # Bandmap view for Tlf logger
 
+![Screenshot](doc/screenshot.png?raw=true)
+
 ## Usage
 ```./tlf_bandmap.py [band]```
 
