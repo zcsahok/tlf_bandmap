@@ -73,15 +73,18 @@ class TlfBandmap(QWidget):
         self.timer.start(2000)
 
         current_index = [b.meter for b in BANDS].index(self.band)
-        band_names = [f'{b.meter} m' for b in BANDS]
+        band_names = [f' {b.meter:>3} m' for b in BANDS]
 
         self.comboBox = QComboBox(self)
         self.comboBox.setGeometry(125, 5, 70, 20)
         self.comboBox.addItems(band_names)
         self.comboBox.setCurrentIndex(current_index)
         self.comboBox.currentTextChanged.connect(self.on_band_changed)
+        self.comboBox.setStyleSheet("QComboBox{"
+                                     "background-color: lightgray;"
+                                     "}")
 
-        self.setGeometry(300, 300, 200, 500)
+        self.setGeometry(300, 300, 230, 500)
         self.setMinimumSize(200, 500)
         self.setStyleSheet("background-color: #aaaaaa;")
 
@@ -127,7 +130,7 @@ class TlfBandmap(QWidget):
         #
         # draw frequency scale
         #
-        scale_x = size.width()/3
+        scale_x = size.width()/4
         qp.setPen(QPen(Qt.black, 1, Qt.SolidLine))
         qp.drawLine(scale_x, 0, scale_x, size.height())
         qp.setFont(QFont('Decorative', 8))
@@ -156,7 +159,7 @@ class TlfBandmap(QWidget):
         normal_font = QFont('Monospace', 10)
         new_font = QFont('Monospace', 10, QFont.Bold, True)
         ymin = 0
-        text_x = self.width()/2
+        text_x = (self.width()*4)/10
         for s in self.spots:
             if s.freq < self.f1:
                 continue
@@ -198,7 +201,7 @@ class TlfBandmap(QWidget):
         self.mutex.unlock()
 
     def on_band_changed(self,value):
-        self.select_band(int(value.split(' ')[0]))
+        self.select_band(int(value.replace('m','')))
         self.repaint()
 
     def watchdog(self):
