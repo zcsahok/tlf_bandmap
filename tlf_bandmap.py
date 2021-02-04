@@ -113,6 +113,7 @@ class TlfBandmap(QWidget):
         qp = QPainter()
         qp.begin(self)
         self.draw_bandmap(qp)
+        self.comboBox.setGeometry(self.size().width() - 75, 5, 70, 20)
         qp.end()
 
     def draw_bandmap(self, qp):
