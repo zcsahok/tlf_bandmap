@@ -155,7 +155,7 @@ class TlfBandmap(QWidget):
         new_color = QColor('#55ffff')
         normal_color = QColor('#0505aa')
         old_color = QColor('#aa5500')
-        dupe_color = Qt.gray
+        dupe_color = QColor('#555555')
         normal_font = QFont('Monospace', 10)
         new_font = QFont('Monospace', 10, QFont.Bold, True)
         ymin = 0
