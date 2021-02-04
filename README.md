@@ -15,7 +15,7 @@ To terminate press `Esc` in the window.
 
 ## Issues
 - current frequency is not shown
-- no point-and-clink tuning
+- no point-and-click tuning
 - slow, updates each 10 sec
 
 ## Dependencies
