@@ -83,6 +83,7 @@ class TlfBandmap(QWidget):
 
         self.setGeometry(300, 300, 200, 500)
         self.setMinimumSize(200, 500)
+        self.setStyleSheet("background-color: #aaaaaa;")
 
         geo = self.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()
@@ -148,9 +149,10 @@ class TlfBandmap(QWidget):
         #
         # show spots
         #
-        non_dupe_color = QColor(168, 34, 3)
+        new_color = QColor('#55ffff')
+        normal_color = QColor('#0505aa')
+        old_color = QColor('#aa5500')
         dupe_color = Qt.gray
-        new_color = Qt.blue
         normal_font = QFont('Monospace', 10)
         new_font = QFont('Monospace', 10, QFont.Bold, True)
         ymin = 0
@@ -168,11 +170,14 @@ class TlfBandmap(QWidget):
                 qp.setPen(dupe_color)
                 qp.setFont(normal_font)
             else:
-                if s.timeout > 855:
+                if s.timeout > 855:     # 95%
                     qp.setPen(new_color)
                     qp.setFont(new_font)
+                elif s.timeout > 600:   # 67%
+                    qp.setPen(normal_color)
+                    qp.setFont(normal_font)
                 else:
-                    qp.setPen(non_dupe_color)
+                    qp.setPen(old_color)
                     qp.setFont(normal_font)
             qp.drawText(text_x, text_y + 5, s.call)
             qp.drawLine(scale_x + 5, y, text_x - 5, text_y)
