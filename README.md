@@ -5,7 +5,7 @@
 ## Usage
 ```./tlf_bandmap.py [band]```
 
-Default band is 40. No further configation is needed, just start _tlf_ connected to the cluster.
+Default band is 40. No further configuration is needed, just start _tlf_ connected to the cluster.
 Multiple instances can be started to watch the bands.
 
 Mouse wheel scrolling zooms the view in/out. Band can be selected using drop-down menu.
