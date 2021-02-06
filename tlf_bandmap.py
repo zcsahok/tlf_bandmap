@@ -381,9 +381,14 @@ def process_args():
 def main():
     parsed_args, unparsed_args = process_args()
 
-    if parsed_args.band == 30 and parsed_args.ssb:
-        print(f'No SSB on 30 m, exiting')
+    band = next(b for b in BANDS if b.meter == parsed_args.band)
+
+    if not band.fssb and parsed_args.ssb:
+        print(f'No SSB on {band.meter} m, exiting')
         sys.exit(1)
+
+    if band.warc and not parsed_args.warc:
+        parsed_args.warc = True
 
     if parsed_args.dir:
         parsed_args.bmdata = os.path.expanduser(parsed_args.dir + '/' + BMDATA_FILE)
