@@ -2,33 +2,42 @@
 """
     Bandmap view for Tlf
 
-    Usage:  ./tlf_bandmap.py [band]
+    Usage:  ./tlf_bandmap.py [-d DIR] [-w] [-c | -s | -m] [band]
 
     Needs PyQt5: apt install python3-pyqt5
 """
 
-import sys, os
+import sys, os, argparse, math, signal
 from PyQt5.QtWidgets import QWidget, QApplication, QComboBox, QDesktopWidget
 from PyQt5.QtGui import QPainter, QColor, QFont, QPen
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QFileSystemWatcher, QMutex
 
-BMDATA_FILE = os.path.expanduser('~/.bmdata.dat')
+BMDATA_FILE = '.bmdata.dat'
 
 #############
 class Band:
-    def __init__(self, meter, fmin, fmax):
+    def __init__(self, meter, fmin, fcw, fssb, fmax, warc):
         self.meter = meter
         self.fmin = fmin
+        self.fcw = fcw
+        self.fssb = fssb
         self.fmax = fmax
+        self.warc = warc
 
-# focusing on CW
+    def __str__(self):
+        return f'{self.meter} m'
+
 BANDS = [
-    Band(160, 1_800_000,  1_838_000),
-    Band(80,  3_500_000,  3_580_000),
-    Band(40,  7_000_000,  7_040_000),
-    Band(20, 14_000_000, 14_070_000),
-    Band(15, 21_000_000, 21_070_000),
-    Band(10, 28_000_000, 28_070_000),
+    Band(160, 1_800_000,  1_838_000,  1_840_000,  2_000_000, False),
+    Band(80,  3_500_000,  3_580_000,  3_600_000,  4_000_000, False),
+    Band(60,  5_250_000,  5_354_000,  5_354_000,  5_450_000, True),
+    Band(40,  7_000_000,  7_040_000,  7_040_000,  7_300_000, False),
+    Band(30, 10_100_000, 10_140_000,       None, 10_150_000, True),
+    Band(20, 14_000_000, 14_070_000, 14_100_000, 14_350_000, False),
+    Band(17, 18_068_000, 18_095_000, 18_120_000, 18_168_000, True),
+    Band(15, 21_000_000, 21_070_000, 21_150_000, 21_450_000, False),
+    Band(12, 24_890_000, 24_915_000, 24_930_000, 24_990_000, True),
+    Band(10, 28_000_000, 28_070_000, 28_300_000, 29_700_000, False),
 ]
 
 #############
@@ -50,30 +59,45 @@ class Spot:
 #############
 class TlfBandmap(QWidget):
 
-    def __init__(self, band):
+    def __init__(self, args):
         super().__init__()
 
         self.mutex = QMutex()
-        self.band = None
-        self.select_band(band)
-        if not self.band:
-            print(f'Unknown band {band}, exiting')
-            sys.exit(1)
 
+        if args.ssb:
+            self.mode = 'ssb'
+        elif args.mixed:
+            self.mode = 'mixed'
+        else:
+            self.mode = 'cw'
+
+        self.freq_store = {}
+        self.select_band(args.band)
         self.spots = []
+        self.bmdata = args.bmdata
 
         self.fs_watcher = QFileSystemWatcher()
         self.fs_watcher.fileChanged.connect(self.file_changed)
-        if os.path.exists(BMDATA_FILE):
-            self.load_spots(BMDATA_FILE)
-            self.fs_watcher.addPath(BMDATA_FILE)
+        if os.path.exists(self.bmdata):
+            self.load_spots(self.bmdata)
+            self.fs_watcher.addPath(self.bmdata)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.watchdog)
         self.timer.start(2000)
 
-        current_index = [b.meter for b in BANDS].index(self.band)
-        band_names = [f' {b.meter:>3} m' for b in BANDS]
+        if args.warc:
+            self.meter_list = [b.meter for b in BANDS]
+            if self.mode == 'ssb':
+                self.meter_list.remove(30)
+        else:
+            self.meter_list = list(
+                                map(lambda b: b.meter,
+                                    filter(lambda b: not b.warc,
+                                        BANDS)))
+
+        current_index = self.meter_list.index(self.band)
+        band_names = [f' {m:>3} m' for m in self.meter_list]
 
         self.comboBox = QComboBox(self)
         self.comboBox.setGeometry(125, 5, 70, 20)
@@ -102,13 +126,31 @@ class TlfBandmap(QWidget):
                 continue
             self.mutex.lock()
             self.band = meter
-            self.FMIN = band.fmin
-            self.FMAX = band.fmax
-            self.f1 = band.fmin
-            self.f2 = band.fmax
-            self.set_ticks()
+            if self.mode == 'ssb':
+                self.FMIN = band.fssb
+                self.FMAX = band.fmax
+            elif self.mode == 'mixed':
+                self.FMIN = band.fmin
+                self.FMAX = band.fmax
+            elif self.mode == 'cw':
+                self.FMIN = band.fmin
+                self.FMAX = band.fcw
+
+            if self.band in self.freq_store:
+                (fa, fb) = self.freq_store[self.band]
+            else:
+                fa = self.FMIN
+                fb = self.FMAX
+
+            self.set_range(fa, fb)
             self.mutex.unlock()
             break
+
+    def set_range(self, f1, f2):
+        self.f1 = f1
+        self.f2 = f2
+        self.freq_store[self.band] = (self.f1, self.f2)
+        self.set_ticks()
 
     def px_per_hz(self):
         return self.size().height() / (self.f2 - self.f1)
@@ -130,7 +172,7 @@ class TlfBandmap(QWidget):
         #
         # draw frequency scale
         #
-        scale_x = size.width()/4
+        scale_x = size.width() * 0.25
         qp.setPen(QPen(Qt.black, 1, Qt.SolidLine))
         qp.drawLine(scale_x, 0, scale_x, size.height())
         qp.setFont(QFont('Decorative', 8))
@@ -147,7 +189,7 @@ class TlfBandmap(QWidget):
             qp.drawLine(scale_x - tick_size, y, scale_x, y)
             if (f % self.tick_major) != 0:
                 continue
-            qp.drawText(scale_x - 45, y + 8/2, f'{int(f/1000)}')
+            qp.drawText(scale_x - 45, y + 8/2, f'{int(f/1000):>5}')
 
         #
         # show spots
@@ -155,11 +197,11 @@ class TlfBandmap(QWidget):
         new_color = QColor('#55ffff')
         normal_color = QColor('#0505aa')
         old_color = QColor('#aa5500')
-        dupe_color = QColor('#555555')
+        dupe_color = QColor('#666666')
         normal_font = QFont('Monospace', 10)
         new_font = QFont('Monospace', 10, QFont.Bold, True)
         ymin = 0
-        text_x = (self.width()*4)/10
+        text_x = self.width() * 0.4
         for s in self.spots:
             if s.freq < self.f1:
                 continue
@@ -206,11 +248,11 @@ class TlfBandmap(QWidget):
 
     def watchdog(self):
         files = self.fs_watcher.files()     # check fsWatcher
-        if BMDATA_FILE in files:
+        if self.bmdata in files:
             return
-        if os.path.exists(BMDATA_FILE):
-            self.fs_watcher.addPath(BMDATA_FILE)
-            self.file_changed(BMDATA_FILE)
+        if os.path.exists(self.bmdata):
+            self.fs_watcher.addPath(self.bmdata)
+            self.file_changed(self.bmdata)
             
 
     def wheelEvent(self, event):
@@ -229,8 +271,7 @@ class TlfBandmap(QWidget):
         f_diff = f2a - f1a
 
         if f_diff > self.FMAX - self.FMIN:
-            self.f1 = self.FMIN
-            self.f2 = self.FMAX
+            self.set_range(self.FMIN, self.FMAX)
             self.mutex.unlock()
             self.repaint()
             return
@@ -248,33 +289,43 @@ class TlfBandmap(QWidget):
         f1a = f1a + d
         f2a = f2a + d
 
-        self.f1 = f1a
-        self.f2 = f2a
-        self.set_ticks()
+        self.set_range(f1a, f2a)
         self.mutex.unlock()
         self.repaint()
 
 
     def set_ticks(self):
-        f_diff = self.f2 - self.f1
-        if f_diff < 5_000:
-            self.tick_major = 1_000
-            self.tick_minor = 200
-        elif f_diff < 10_000:
-            self.tick_major = 2_000
-            self.tick_minor = 500
-        elif f_diff < 30_000:
-            self.tick_major = 5_000
-            self.tick_minor = 1_000
+        raw_tick = (self.f2 - self.f1) / 3
+        tenpwr = int(10**int(math.log10(raw_tick)))
+        mantissa = raw_tick / tenpwr
+
+        if mantissa < 2:
+            self.tick_major = tenpwr
+            self.tick_minor = self.tick_major // 5
+        elif mantissa < 5:
+            self.tick_major = 2 * tenpwr
+            self.tick_minor = self.tick_major // 4
         else:
-            self.tick_major = 10_000
-            self.tick_minor = 2_000
+            self.tick_major = 5 * tenpwr
+            self.tick_minor = self.tick_major // 5
 
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
+        elif event.key() == Qt.Key_Left:
+            self.switch_band(-1)
+        elif event.key() == Qt.Key_Right:
+            self.switch_band(+1)
+        else:
+            pass
 
+    def switch_band(self, direction):
+        current_index = self.meter_list.index(self.band)
+        current_index = (current_index + direction) % len(self.meter_list)
+        self.comboBox.setCurrentIndex(current_index)
+        self.select_band(self.meter_list[current_index])
+        self.repaint()
 
     def file_changed(self, fname):
         size = 0
@@ -300,16 +351,50 @@ class TlfBandmap(QWidget):
 
 #################################################
 
+def process_args():
+    parser = argparse.ArgumentParser(description='Bandmap view for Tlf ')
+    meters = sorted([b.meter for b in BANDS])
+    parser.add_argument('band', metavar='band', nargs='?', type=int,
+                    choices=meters, default=40,
+                    help=f'band to display {meters} (default: 40)')
+    parser.add_argument('-d', '--dir', metavar='DIR',
+                    help='working directory of Tlf (default: current directory)')
+    parser.add_argument('-w', '--warc', action='store_true',
+                    help='enable WARC bands')
+
+    mode_group = parser.add_mutually_exclusive_group(required=False)
+    mode_group.add_argument('-c', '--cw', action='store_true',
+                    help='show CW segment (default)')
+    mode_group.add_argument('-s', '--ssb', action='store_true',
+                    help='show SSB segment')
+    mode_group.add_argument('-m', '--mixed', action='store_true',
+                    help='show whole band')
+
+    parsed_args, unparsed_args = parser.parse_known_args()
+    if '-?' in unparsed_args:
+        parser.print_help()
+        sys.exit(1)
+
+    return parsed_args, unparsed_args
+
+
 def main():
-    band = 40
-    if len(sys.argv) >= 2:
-        try:
-            band = int(sys.argv[1])
-        except ValueError:
-            band = sys.argv[1]      # just to show the right error message
+    parsed_args, unparsed_args = process_args()
+
+    if parsed_args.band == 30 and parsed_args.ssb:
+        print(f'No SSB on 30 m, exiting')
+        sys.exit(1)
+
+    if parsed_args.dir:
+        parsed_args.bmdata = os.path.expanduser(parsed_args.dir + '/' + BMDATA_FILE)
+    else:
+        parsed_args.bmdata = BMDATA_FILE
+
+    # to avoid crashing on Ctrl-C...
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     app = QApplication(sys.argv)
-    ex = TlfBandmap(band)
+    ex = TlfBandmap(parsed_args)
     sys.exit(app.exec_())
 
 
