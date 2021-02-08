@@ -9,6 +9,7 @@
 
 import sys, os, argparse, math, signal
 from PyQt5.QtWidgets import QWidget, QApplication, QComboBox, QDesktopWidget
+from PyQt5.QtWidgets import QCheckBox
 from PyQt5.QtGui import QPainter, QColor, QFont, QPen
 from PyQt5.QtCore import Qt, QTimer, QDateTime, QFileSystemWatcher, QMutex
 
@@ -108,6 +109,11 @@ class TlfBandmap(QWidget):
                                      "background-color: lightgray;"
                                      "}")
 
+        self.dupeSwitch = QCheckBox('Dupes', self)
+        self.dupeSwitch.setGeometry(160, 30, 70, 20)
+        self.dupeSwitch.setChecked(True)
+        self.dupeSwitch.stateChanged.connect(self.on_dupe_toggled)
+
         self.setGeometry(300, 300, 230, 500)
         self.setMinimumSize(200, 500)
         self.setStyleSheet("background-color: #aaaaaa;")
@@ -202,6 +208,7 @@ class TlfBandmap(QWidget):
         new_font = QFont('Monospace', 10, QFont.Bold, True)
         ymin = 0
         text_x = self.width() * 0.4
+        show_dupes = self.dupeSwitch.isChecked()
         for s in self.spots:
             if s.freq < self.f1:
                 continue
@@ -212,6 +219,8 @@ class TlfBandmap(QWidget):
             if text_y < ymin:
                 text_y = ymin
             if s.dupe:
+                if not show_dupes:
+                    continue
                 qp.setPen(dupe_color)
                 qp.setFont(normal_font)
             else:
@@ -244,6 +253,9 @@ class TlfBandmap(QWidget):
 
     def on_band_changed(self,value):
         self.select_band(int(value.replace('m','')))
+        self.repaint()
+
+    def on_dupe_toggled(self):
         self.repaint()
 
     def watchdog(self):
