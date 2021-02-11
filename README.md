@@ -12,8 +12,10 @@ Multiple instances can be started to watch the bands.
 A different working directory can be selected with `-d` option.
 
 Mouse wheel scrolling zooms the view in/out.
+Holding left mouse button down and moving mouse up/down pans the view.
 Band can be selected using drop-down menu.
 Cursor Left/Right switches to next band.
+Dupes can be displayed or suppressed.
 
 To terminate press `Esc` in the window.
 

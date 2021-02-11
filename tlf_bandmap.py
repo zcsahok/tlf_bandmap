@@ -76,6 +76,9 @@ class TlfBandmap(QWidget):
         self.select_band(args.band)
         self.spots = []
         self.bmdata = args.bmdata
+        self.pan_base_y = None
+        self.pan_base_f1 = None
+        self.pan_base_f2 = None
 
         self.fs_watcher = QFileSystemWatcher()
         self.fs_watcher.fileChanged.connect(self.file_changed)
@@ -322,6 +325,28 @@ class TlfBandmap(QWidget):
             self.tick_minor = self.tick_major // 5
 
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.pan_base_y = event.y()     # remember current position
+            self.pan_base_f1 = self.f1
+            self.pan_base_f2 = self.f2
+            self.setMouseTracking(True)     # start panning
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.setMouseTracking(False)    # stop panning
+            self.pan_base_y = None
+
+    def mouseMoveEvent(self, event):
+        if not self.pan_base_y:
+            return
+        shift = int((self.pan_base_y - event.y()) / self.px_per_hz())
+        shift = max(shift, self.FMIN - self.pan_base_f1)
+        shift = min(shift, self.FMAX - self.pan_base_f2)
+        self.f1 = self.pan_base_f1 + shift
+        self.f2 = self.pan_base_f2 + shift
+        self.repaint()
+
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
@@ -340,7 +365,6 @@ class TlfBandmap(QWidget):
         self.repaint()
 
     def file_changed(self, fname):
-        size = 0
         if os.path.exists(fname):
             self.load_spots(fname)
         else:
