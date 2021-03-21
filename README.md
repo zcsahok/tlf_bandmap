@@ -13,9 +13,12 @@ A different working directory can be selected with `-d` option.
 
 Mouse wheel scrolling zooms the view in/out.
 Holding left mouse button down and moving mouse up/down pans the view.
+Right click changes frequency.
 Band can be selected using drop-down menu.
 Cursor Left/Right switches to next band.
 Dupes can be displayed or suppressed.
+
+`rigctld` on localhost is used for radio control.
 
 To terminate press `Esc` in the window.
 

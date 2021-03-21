@@ -4,14 +4,16 @@
 
     Usage:  ./tlf_bandmap.py [-d DIR] [-w] [-c | -s | -m] [band]
 
-    Needs PyQt5: apt install python3-pyqt5
+    Needs PyQt5 and hamlib: apt install python3-pyqt5 python3-libhamlib2
 """
 
 import sys, os, argparse, math, signal
 from PyQt5.QtWidgets import QWidget, QApplication, QComboBox, QDesktopWidget
 from PyQt5.QtWidgets import QCheckBox
-from PyQt5.QtGui import QPainter, QColor, QFont, QPen
-from PyQt5.QtCore import Qt, QTimer, QDateTime, QFileSystemWatcher, QMutex
+from PyQt5.QtGui import QPainter, QColor, QFont, QPen, QPolygon, QBrush
+from PyQt5.QtCore import Qt, QTimer, QDateTime, QFileSystemWatcher, QMutex, pyqtSignal, QPoint
+
+import Hamlib
 
 BMDATA_FILE = '.bmdata.dat'
 
@@ -60,6 +62,8 @@ class Spot:
 #############
 class TlfBandmap(QWidget):
 
+    qsy = pyqtSignal(int)
+
     def __init__(self, args):
         super().__init__()
 
@@ -79,6 +83,7 @@ class TlfBandmap(QWidget):
         self.pan_base_y = None
         self.pan_base_f1 = None
         self.pan_base_f2 = None
+        self.current_frequency = 0
 
         self.fs_watcher = QFileSystemWatcher()
         self.fs_watcher.fileChanged.connect(self.file_changed)
@@ -186,6 +191,17 @@ class TlfBandmap(QWidget):
         qp.drawLine(scale_x, 0, scale_x, size.height())
         qp.setFont(QFont('Decorative', 8))
         b = self.px_per_hz()
+
+        if self.current_frequency > 0:
+            y = b * (self.current_frequency - self.f1)
+            qp.setBrush(QBrush(Qt.yellow, Qt.SolidPattern))
+            points = QPolygon([
+                QPoint(40, y - 5),
+                QPoint(50, y),
+                QPoint(40, y + 5)
+            ])
+            qp.drawPolygon(points)
+
         tf1 = int(self.f1 / self.tick_minor) * self.tick_minor
         tf2 = (1 + int(self.f2 / self.tick_minor)) * self.tick_minor
         for f in range(tf1, tf2, self.tick_minor):
@@ -331,6 +347,9 @@ class TlfBandmap(QWidget):
             self.pan_base_f1 = self.f1
             self.pan_base_f2 = self.f2
             self.setMouseTracking(True)     # start panning
+        elif event.button() == Qt.RightButton:
+            f = int(event.y() / self.px_per_hz() + self.f1)
+            self.qsy.emit(f)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -382,6 +401,46 @@ class TlfBandmap(QWidget):
                     self.spots.append(spot)
 
             self.mutex.unlock()
+
+    def update_frequency(self, value):
+        if value != self.current_frequency:
+            self.current_frequency = value
+            self.repaint()
+
+
+class RigctldHandler(QWidget):
+
+    update_frequency = pyqtSignal(int)
+
+    def __init__(self, args):
+        super().__init__()
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.poll)
+        self.timer.start(500)
+
+        Hamlib.rig_set_debug(Hamlib.RIG_DEBUG_NONE)
+        self.connect()
+
+    def connect(self):
+        self.rig = Hamlib.Rig(Hamlib.RIG_MODEL_NETRIGCTL)
+        self.rig.open()
+        self.error_count = 0    # poll() will reconnect if there was an error
+
+    def poll(self):
+        f = self.rig.get_freq()
+        if self.rig.error_status == Hamlib.RIG_OK:
+            self.update_frequency.emit(int(f))
+        else:
+            self.update_frequency.emit(0)
+            self.error_count = self.error_count + 1
+            if self.error_count > 10:
+                self.connect()
+
+    def set_frequency(self, value):
+        if self.error_count > 0:
+            return
+        self.rig.set_freq(Hamlib.RIG_VFO_CURR, value)
 
 
 
@@ -435,7 +494,13 @@ def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     app = QApplication(sys.argv)
-    ex = TlfBandmap(parsed_args)
+
+    tlf_bandmap = TlfBandmap(parsed_args)
+    rigctld_handler = RigctldHandler(parsed_args)
+
+    rigctld_handler.update_frequency.connect(tlf_bandmap.update_frequency)
+    tlf_bandmap.qsy.connect(rigctld_handler.set_frequency)
+
     sys.exit(app.exec_())
 
 
