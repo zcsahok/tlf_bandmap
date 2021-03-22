@@ -23,10 +23,9 @@ Dupes can be displayed or suppressed.
 To terminate press `Esc` in the window.
 
 ## Issues
-- current frequency is not shown
-- no point-and-click tuning
+- talks to local rigctld only
 - slow, updates each 10 sec
 
 ## Dependencies
-Needs PyQt5:
-```apt install python3-pyqt5```
+Needs PyQt5 and hamlib:
+```apt install python3-pyqt5 python3-libhamlib2```
