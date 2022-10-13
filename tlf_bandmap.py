@@ -188,7 +188,7 @@ class TlfBandmap(QWidget):
         #
         scale_x = size.width() * 0.25
         qp.setPen(QPen(Qt.black, 1, Qt.SolidLine))
-        qp.drawLine(scale_x, 0, scale_x, size.height())
+        qp.drawLine(round(scale_x), 0, round(scale_x), size.height())
         qp.setFont(QFont('Decorative', 8))
         b = self.px_per_hz()
 
@@ -211,10 +211,10 @@ class TlfBandmap(QWidget):
             tick_size = 5       # minor tick
             if (f % self.tick_major) == 0:
                 tick_size = 10  # major tick
-            qp.drawLine(scale_x - tick_size, y, scale_x, y)
+            qp.drawLine(round(scale_x - tick_size), round(y), round(scale_x), round(y))
             if (f % self.tick_major) != 0:
                 continue
-            qp.drawText(scale_x - 45, y + 8/2, f'{int(f/1000):>5}')
+            qp.drawText(round(scale_x - 45), round(y + 8/2), f'{int(f/1000):>5}')
 
         #
         # show spots
@@ -252,8 +252,8 @@ class TlfBandmap(QWidget):
                 else:
                     qp.setPen(old_color)
                     qp.setFont(normal_font)
-            qp.drawText(text_x, text_y + 5, s.call)
-            qp.drawLine(scale_x + 5, y, text_x - 5, text_y)
+            qp.drawText(round(text_x), round(text_y + 5), s.call)
+            qp.drawLine(round(scale_x + 5), round(y), round(text_x - 5), round(text_y))
             ymin = text_y + 10
 
         #
