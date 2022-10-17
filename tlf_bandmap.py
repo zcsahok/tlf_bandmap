@@ -196,9 +196,9 @@ class TlfBandmap(QWidget):
             y = b * (self.current_frequency - self.f1)
             qp.setBrush(QBrush(Qt.yellow, Qt.SolidPattern))
             points = QPolygon([
-                QPoint(40, y - 5),
-                QPoint(50, y),
-                QPoint(40, y + 5)
+                QPoint(40, round(y - 5)),
+                QPoint(50, round(y)),
+                QPoint(40, round(y + 5))
             ])
             qp.drawPolygon(points)
 
